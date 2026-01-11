@@ -16,6 +16,7 @@ data "archive_file" "telegram_handler" {
 resource "yandex_function" "periodic_job" {
   name        = "rsgb-periodic-job"
   description = "Periodic job: Slot optimization and review processing"
+  folder_id   = var.folder_id
   user_hash   = data.archive_file.periodic_job.output_sha256
   runtime     = "golang123"
   entrypoint  = "main.Handler"
@@ -38,6 +39,7 @@ resource "yandex_function" "periodic_job" {
 resource "yandex_function" "telegram_handler" {
   name        = "rsgb-telegram-handler"
   description = "Telegram webhook handler: User button clicks and commands"
+  folder_id   = var.folder_id
   user_hash   = data.archive_file.telegram_handler.output_sha256
   runtime     = "golang123"
   entrypoint  = "main.Handler"
