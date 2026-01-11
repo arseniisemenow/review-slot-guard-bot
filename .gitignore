@@ -7,3 +7,6 @@
 *.zip
 *.tfstate
 *.tfstate.backup
+.build-timestamp
+*.zip.sha256
+*.tfstate.*.backup
