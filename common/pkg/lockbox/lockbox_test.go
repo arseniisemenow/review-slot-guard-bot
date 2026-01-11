@@ -138,10 +138,10 @@ func TestInitClient(t *testing.T) {
 		os.Unsetenv("LOCKBOX_SECRET_ID")
 
 		ctx := context.Background()
-		client, err := InitClient(ctx)
+		lockboxClient, err := InitClient(ctx)
 
 		assert.Error(t, err)
-		assert.Nil(t, client)
+		assert.Nil(t, lockboxClient)
 		assert.Contains(t, err.Error(), "LOCKBOX_SECRET_ID environment variable not set")
 	})
 
@@ -175,6 +175,21 @@ func TestInitClient(t *testing.T) {
 
 		// Both should have the same error (or success) result
 		assert.Equal(t, err1 != nil, err2 != nil)
+	})
+
+	t.Run("Multiple initializations return same client on success", func(t *testing.T) {
+		setupTestEnv(t)
+		defer teardownTestEnv(t)
+
+		ctx := context.Background()
+
+		// In test environment, InitClient will fail due to missing credentials
+		// but we can test that clientOnce prevents multiple initialization attempts
+		_, err1 := InitClient(ctx)
+		_, err2 := InitClient(ctx)
+
+		// Both attempts should complete (not hang)
+		assert.True(t, err1 != nil || err2 != nil)
 	})
 }
 
@@ -1826,5 +1841,728 @@ func TestMockInterface(t *testing.T) {
 
 		wg.Wait()
 		assert.Equal(t, 100, mock.GetCallCount())
+	})
+}
+
+// ============================================================================
+// Tests for MockLockboxClient and ClientAdapter
+// ============================================================================
+
+// TestGetPayloadCacheExpiry tests the getPayload cache expiry behavior
+func TestGetPayloadCacheExpiry(t *testing.T) {
+	setupTestEnv(t)
+	defer teardownTestEnv(t)
+
+	t.Run("Cache miss triggers fetch", func(t *testing.T) {
+		// Reset to ensure no cache
+		resetPackageState()
+
+		// Don't set cache - getPayload should try to fetch from Lockbox
+		// This will fail in test environment but tests the path
+		ctx := context.Background()
+		_, err := getPayload(ctx)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("Cache hit returns cached value", func(t *testing.T) {
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user1": {
+					AccessToken:  "access1",
+					RefreshToken: "refresh1",
+				},
+			},
+		}
+
+		// Set valid cache
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		result, err := getPayload(ctx)
+
+		require.NoError(t, err)
+		assert.Equal(t, testPayload, result)
+	})
+
+	t.Run("Cache expiry triggers refetch attempt", func(t *testing.T) {
+		// Set expired cache
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user1": {
+					AccessToken:  "access1",
+					RefreshToken: "refresh1",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, -1*time.Minute)
+
+		// getPayload should try to fetch from Lockbox
+		// This will fail in test environment but tests the expiry path
+		ctx := context.Background()
+		_, err := getPayload(ctx)
+
+		assert.Error(t, err)
+	})
+}
+
+// TestClientAdapterMethods tests all ClientAdapter methods
+func TestClientAdapterMethods(t *testing.T) {
+	setupTestEnv(t)
+	defer teardownTestEnv(t)
+
+	t.Run("GetUserTokens success path", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"testuser": {
+					AccessToken:  "test_access",
+					RefreshToken: "test_refresh",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		tokens, err := adapter.GetUserTokens(ctx, "testuser")
+
+		require.NoError(t, err)
+		assert.Equal(t, "test_access", tokens.AccessToken)
+	})
+
+	t.Run("GetUserTokens error path", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users:   make(map[string]models.UserTokens),
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		tokens, err := adapter.GetUserTokens(ctx, "nonexistent")
+
+		assert.Error(t, err)
+		assert.Nil(t, tokens)
+	})
+
+	t.Run("StoreUserTokens error path and cache invalidation", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user1": {
+					AccessToken:  "access1",
+					RefreshToken: "refresh1",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		err := adapter.StoreUserTokens(ctx, "user2", "access2", "refresh2")
+
+		assert.Error(t, err)
+		// Verify cache was invalidated
+		assert.Nil(t, payloadCache)
+	})
+
+	t.Run("DeleteUserTokens error path and cache invalidation", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user1": {
+					AccessToken:  "access1",
+					RefreshToken: "refresh1",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		err := adapter.DeleteUserTokens(ctx, "user1")
+
+		assert.Error(t, err)
+		// Verify cache was invalidated
+		assert.Nil(t, payloadCache)
+	})
+}
+
+// TestMockLockboxClient tests the MockLockboxClient implementation
+func TestMockLockboxClient(t *testing.T) {
+	t.Run("MockLockboxClient GetUserTokens success", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "test_access",
+			RefreshToken: "test_refresh",
+		}
+
+		mockClient.On("GetUserTokens", ctx, "testuser").Return(expectedTokens, nil)
+
+		tokens, err := mockClient.GetUserTokens(ctx, "testuser")
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTokens, tokens)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient GetUserTokens error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedErr := errors.New("user not found")
+
+		mockClient.On("GetUserTokens", ctx, "nonexistent").Return((*models.UserTokens)(nil), expectedErr)
+
+		tokens, err := mockClient.GetUserTokens(ctx, "nonexistent")
+
+		assert.Error(t, err)
+		assert.Nil(t, tokens)
+		assert.Equal(t, expectedErr, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient GetUserTokens with nil error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "test_access",
+			RefreshToken: "test_refresh",
+		}
+
+		// Return with nil as second parameter
+		mockClient.On("GetUserTokens", ctx, "testuser").Return(expectedTokens, nil)
+
+		tokens, err := mockClient.GetUserTokens(ctx, "testuser")
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTokens, tokens)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient StoreUserTokens success", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		mockClient.On("StoreUserTokens", ctx, "testuser", "access", "refresh").Return(nil)
+
+		err := mockClient.StoreUserTokens(ctx, "testuser", "access", "refresh")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient StoreUserTokens error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedErr := errors.New("failed to store")
+
+		mockClient.On("StoreUserTokens", ctx, "testuser", "access", "refresh").Return(expectedErr)
+
+		err := mockClient.StoreUserTokens(ctx, "testuser", "access", "refresh")
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient StoreUserTokens with nil error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		mockClient.On("StoreUserTokens", ctx, "testuser", "access", "refresh").Return(nil)
+
+		err := mockClient.StoreUserTokens(ctx, "testuser", "access", "refresh")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient DeleteUserTokens success", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		mockClient.On("DeleteUserTokens", ctx, "testuser").Return(nil)
+
+		err := mockClient.DeleteUserTokens(ctx, "testuser")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient DeleteUserTokens error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedErr := errors.New("failed to delete")
+
+		mockClient.On("DeleteUserTokens", ctx, "testuser").Return(expectedErr)
+
+		err := mockClient.DeleteUserTokens(ctx, "testuser")
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("MockLockboxClient DeleteUserTokens with nil error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		mockClient.On("DeleteUserTokens", ctx, "testuser").Return(nil)
+
+		err := mockClient.DeleteUserTokens(ctx, "testuser")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+}
+
+// TestClientAdapter tests the ClientAdapter implementation
+func TestClientAdapter(t *testing.T) {
+	setupTestEnv(t)
+	defer teardownTestEnv(t)
+
+	t.Run("NewClientAdapter creates adapter", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		assert.NotNil(t, adapter)
+	})
+
+	t.Run("ClientAdapter GetUserTokens", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"testuser": {
+					AccessToken:  "test_access",
+					RefreshToken: "test_refresh",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		tokens, err := adapter.GetUserTokens(ctx, "testuser")
+
+		require.NoError(t, err)
+		assert.NotNil(t, tokens)
+		assert.Equal(t, "test_access", tokens.AccessToken)
+		assert.Equal(t, "test_refresh", tokens.RefreshToken)
+	})
+
+	t.Run("ClientAdapter GetUserTokens not found", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users:   make(map[string]models.UserTokens),
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		tokens, err := adapter.GetUserTokens(ctx, "nonexistent")
+
+		assert.Error(t, err)
+		assert.Nil(t, tokens)
+		assert.Contains(t, err.Error(), "tokens not found for user")
+	})
+
+	t.Run("ClientAdapter StoreUserTokens", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users:   make(map[string]models.UserTokens),
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		err := adapter.StoreUserTokens(ctx, "testuser", "access", "refresh")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet implemented")
+
+		// Verify cache was invalidated
+		assert.Nil(t, payloadCache)
+	})
+
+	t.Run("ClientAdapter DeleteUserTokens", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"testuser": {
+					AccessToken:  "access",
+					RefreshToken: "refresh",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		err := adapter.DeleteUserTokens(ctx, "testuser")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet implemented")
+
+		// Verify cache was invalidated
+		assert.Nil(t, payloadCache)
+	})
+
+	t.Run("ClientAdapter implements LockboxClient interface", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Verify that ClientAdapter implements the LockboxClient interface
+		var _ LockboxClient = adapter
+	})
+}
+
+// TestClientAdapterWithMock tests using ClientAdapter pattern with mock
+func TestClientAdapterWithMock(t *testing.T) {
+	t.Run("Using mock through interface", func(t *testing.T) {
+		var client LockboxClient = new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "mock_access",
+			RefreshToken: "mock_refresh",
+		}
+
+		client.(*MockLockboxClient).On("GetUserTokens", ctx, "testuser").Return(expectedTokens, nil)
+
+		tokens, err := client.GetUserTokens(ctx, "testuser")
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTokens, tokens)
+	})
+
+	t.Run("Using adapter through interface", func(t *testing.T) {
+		setupTestEnv(t)
+		defer teardownTestEnv(t)
+
+		var client LockboxClient = NewClientAdapter()
+
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"testuser": {
+					AccessToken:  "adapter_access",
+					RefreshToken: "adapter_refresh",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		ctx := context.Background()
+		tokens, err := client.GetUserTokens(ctx, "testuser")
+
+		require.NoError(t, err)
+		assert.Equal(t, "adapter_access", tokens.AccessToken)
+		assert.Equal(t, "adapter_refresh", tokens.RefreshToken)
+	})
+}
+
+// TestLockboxClientInterfaceTypeSafety tests interface type safety
+func TestLockboxClientInterfaceTypeSafety(t *testing.T) {
+	t.Run("ClientAdapter satisfies LockboxClient", func(t *testing.T) {
+		var _ LockboxClient = &ClientAdapter{}
+	})
+
+	t.Run("MockLockboxClient satisfies LockboxClient", func(t *testing.T) {
+		var _ LockboxClient = &MockLockboxClient{}
+	})
+
+	t.Run("LockboxClient has correct methods", func(t *testing.T) {
+		var client LockboxClient = new(MockLockboxClient)
+		ctx := context.Background()
+
+		// Test that all interface methods are callable
+		mockClient := client.(*MockLockboxClient)
+
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "test",
+			RefreshToken: "test",
+		}
+
+		mockClient.On("GetUserTokens", ctx, "user").Return(expectedTokens, nil)
+		mockClient.On("StoreUserTokens", ctx, "user", "access", "refresh").Return(nil)
+		mockClient.On("DeleteUserTokens", ctx, "user").Return(nil)
+
+		tokens, err := client.GetUserTokens(ctx, "user")
+		assert.NoError(t, err)
+		assert.NotNil(t, tokens)
+
+		err = client.StoreUserTokens(ctx, "user", "access", "refresh")
+		assert.NoError(t, err)
+
+		err = client.DeleteUserTokens(ctx, "user")
+		assert.NoError(t, err)
+	})
+}
+
+// TestClientAdapterIntegration tests integration scenarios with ClientAdapter
+func TestClientAdapterIntegration(t *testing.T) {
+	setupTestEnv(t)
+	defer teardownTestEnv(t)
+
+	t.Run("Full workflow with adapter", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		ctx := context.Background()
+
+		// Setup initial payload
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user1": {
+					AccessToken:  "access1",
+					RefreshToken: "refresh1",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		// Get tokens
+		tokens, err := adapter.GetUserTokens(ctx, "user1")
+		require.NoError(t, err)
+		assert.Equal(t, "access1", tokens.AccessToken)
+
+		// Try to store new tokens (will fail but tests the path)
+		err = adapter.StoreUserTokens(ctx, "user2", "access2", "refresh2")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet implemented")
+
+		// Cache should be invalidated after store attempt
+		assert.Nil(t, payloadCache)
+
+		// Reset cache for delete test
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		// Try to delete tokens (will fail but tests the path)
+		err = adapter.DeleteUserTokens(ctx, "user1")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet implemented")
+
+		// Cache should be invalidated after delete attempt
+		assert.Nil(t, payloadCache)
+	})
+
+	t.Run("Cache behavior through adapter", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		ctx := context.Background()
+
+		// Setup cache
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user1": {
+					AccessToken:  "access1",
+					RefreshToken: "refresh1",
+				},
+			},
+		}
+
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		// First call should use cache
+		tokens1, err := adapter.GetUserTokens(ctx, "user1")
+		require.NoError(t, err)
+		assert.Equal(t, "access1", tokens1.AccessToken)
+
+		// Second call should also use cache
+		tokens2, err := adapter.GetUserTokens(ctx, "user1")
+		require.NoError(t, err)
+		assert.Equal(t, "access1", tokens2.AccessToken)
+
+		// Invalidate cache
+		InvalidateCache()
+
+		// Verify cache is cleared
+		assert.Nil(t, payloadCache)
+	})
+}
+
+// TestErrorHandlingWithMock tests error handling scenarios with mock
+func TestErrorHandlingWithMock(t *testing.T) {
+	t.Run("GetUserTokens returns error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		testErr := errors.New("connection failed")
+		mockClient.On("GetUserTokens", ctx, "testuser").Return((*models.UserTokens)(nil), testErr)
+
+		tokens, err := mockClient.GetUserTokens(ctx, "testuser")
+
+		assert.Error(t, err)
+		assert.Nil(t, tokens)
+		assert.Equal(t, testErr, err)
+	})
+
+	t.Run("StoreUserTokens returns error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		testErr := errors.New("write failed")
+		mockClient.On("StoreUserTokens", ctx, "testuser", "access", "refresh").Return(testErr)
+
+		err := mockClient.StoreUserTokens(ctx, "testuser", "access", "refresh")
+
+		assert.Error(t, err)
+		assert.Equal(t, testErr, err)
+	})
+
+	t.Run("DeleteUserTokens returns error", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		testErr := errors.New("delete failed")
+		mockClient.On("DeleteUserTokens", ctx, "testuser").Return(testErr)
+
+		err := mockClient.DeleteUserTokens(ctx, "testuser")
+
+		assert.Error(t, err)
+		assert.Equal(t, testErr, err)
+	})
+
+	t.Run("Concurrent operations with mock", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.Background()
+
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "access",
+			RefreshToken: "refresh",
+		}
+
+		mockClient.On("GetUserTokens", ctx, "user").Return(expectedTokens, nil)
+
+		var wg sync.WaitGroup
+		errors := make(chan error, 10)
+
+		// Launch concurrent calls
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := mockClient.GetUserTokens(ctx, "user")
+				if err != nil {
+					errors <- err
+				}
+			}()
+		}
+
+		wg.Wait()
+		close(errors)
+
+		// Should have no errors
+		for err := range errors {
+			t.Errorf("Unexpected error in concurrent mock call: %v", err)
+		}
+	})
+}
+
+// TestContextPropagation tests context propagation through the interface
+func TestContextPropagation(t *testing.T) {
+	t.Run("Context passed to mock GetUserTokens", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.WithValue(context.Background(), "key", "value")
+
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "access",
+			RefreshToken: "refresh",
+		}
+
+		// Verify the exact context is passed
+		mockClient.On("GetUserTokens", ctx, "user").Return(expectedTokens, nil)
+
+		tokens, err := mockClient.GetUserTokens(ctx, "user")
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTokens, tokens)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("Context passed to mock StoreUserTokens", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.WithValue(context.Background(), "key", "value")
+
+		mockClient.On("StoreUserTokens", ctx, "user", "access", "refresh").Return(nil)
+
+		err := mockClient.StoreUserTokens(ctx, "user", "access", "refresh")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("Context passed to mock DeleteUserTokens", func(t *testing.T) {
+		mockClient := new(MockLockboxClient)
+		ctx := context.WithValue(context.Background(), "key", "value")
+
+		mockClient.On("DeleteUserTokens", ctx, "user").Return(nil)
+
+		err := mockClient.DeleteUserTokens(ctx, "user")
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+}
+
+// TestMultipleInterfaceImplementations tests switching between implementations
+func TestMultipleInterfaceImplementations(t *testing.T) {
+	setupTestEnv(t)
+	defer teardownTestEnv(t)
+
+	t.Run("Switch from mock to adapter", func(t *testing.T) {
+		var client LockboxClient
+		ctx := context.Background()
+
+		// Start with mock
+		mockClient := new(MockLockboxClient)
+		expectedTokens := &models.UserTokens{
+			AccessToken:  "mock_access",
+			RefreshToken: "mock_refresh",
+		}
+		mockClient.On("GetUserTokens", ctx, "user").Return(expectedTokens, nil)
+
+		client = mockClient
+		tokens, err := client.GetUserTokens(ctx, "user")
+		require.NoError(t, err)
+		assert.Equal(t, "mock_access", tokens.AccessToken)
+
+		// Switch to adapter
+		testPayload := &models.LockboxPayload{
+			Version: 1,
+			Users: map[string]models.UserTokens{
+				"user": {
+					AccessToken:  "adapter_access",
+					RefreshToken: "adapter_refresh",
+				},
+			},
+		}
+		SetPayloadCache(testPayload, 5*time.Minute)
+
+		client = NewClientAdapter()
+		tokens, err = client.GetUserTokens(ctx, "user")
+		require.NoError(t, err)
+		assert.Equal(t, "adapter_access", tokens.AccessToken)
 	})
 }

@@ -24,6 +24,29 @@ var (
 	secretID       string
 )
 
+// ClientAdapter implements LockboxClient using the global functions
+type ClientAdapter struct{}
+
+// NewClientAdapter creates a new ClientAdapter
+func NewClientAdapter() *ClientAdapter {
+	return &ClientAdapter{}
+}
+
+// GetUserTokens retrieves access and refresh tokens for a specific user
+func (c *ClientAdapter) GetUserTokens(ctx context.Context, reviewerLogin string) (*models.UserTokens, error) {
+	return GetUserTokens(ctx, reviewerLogin)
+}
+
+// StoreUserTokens stores new tokens for a user
+func (c *ClientAdapter) StoreUserTokens(ctx context.Context, reviewerLogin, accessToken, refreshToken string) error {
+	return StoreUserTokens(ctx, reviewerLogin, accessToken, refreshToken)
+}
+
+// DeleteUserTokens removes tokens for a user
+func (c *ClientAdapter) DeleteUserTokens(ctx context.Context, reviewerLogin string) error {
+	return DeleteUserTokens(ctx, reviewerLogin)
+}
+
 // InitClient initializes the Lockbox client
 func InitClient(ctx context.Context) (*lockboxpayload.PayloadServiceClient, error) {
 	var initErr error

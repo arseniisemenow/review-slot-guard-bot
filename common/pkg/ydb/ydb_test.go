@@ -2,16 +2,234 @@ package ydb
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 
 	"github.com/arseniisemenow/review-slot-guard-bot/common/pkg/models"
 )
+
+// ============================================================================
+// Tests for Database Interface and MockDatabase
+// ============================================================================
+
+// TestMockDatabase_Query tests the MockDatabase Query method
+func TestMockDatabase_Query(t *testing.T) {
+	mockDB := NewMockDatabase()
+	ctx := context.Background()
+
+	t.Run("query with error", func(t *testing.T) {
+		expectedErr := errors.New("query failed")
+		mockDB.On("Query", ctx, "INVALID SQL", []table.ParameterOption(nil)).
+			Return(nil, expectedErr).Once()
+
+		res, err := mockDB.Query(ctx, "INVALID SQL")
+
+		assert.Error(t, err)
+		assert.Nil(t, res)
+		assert.Equal(t, expectedErr, err)
+	})
+
+	t.Run("query returns nil result", func(t *testing.T) {
+		mockDB.On("Query", ctx, "SELECT * FROM users", []table.ParameterOption(nil)).
+			Return(nil, nil).Once()
+
+		res, err := mockDB.Query(ctx, "SELECT * FROM users")
+
+		assert.NoError(t, err)
+		assert.Nil(t, res)
+	})
+}
+
+// TestMockDatabase_Exec tests the MockDatabase Exec method
+func TestMockDatabase_Exec(t *testing.T) {
+	mockDB := NewMockDatabase()
+	ctx := context.Background()
+
+	t.Run("successful exec", func(t *testing.T) {
+		mockDB.On("Exec", ctx, "UPDATE users SET status = 'active'", []table.ParameterOption(nil)).
+			Return(nil).Once()
+
+		err := mockDB.Exec(ctx, "UPDATE users SET status = 'active'")
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("exec with error", func(t *testing.T) {
+		expectedErr := errors.New("exec failed")
+		mockDB.On("Exec", ctx, "INVALID SQL", []table.ParameterOption(nil)).
+			Return(expectedErr).Once()
+
+		err := mockDB.Exec(ctx, "INVALID SQL")
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
+}
+
+// TestMockDatabase_DoTx tests the MockDatabase DoTx method
+func TestMockDatabase_DoTx(t *testing.T) {
+	mockDB := NewMockDatabase()
+	ctx := context.Background()
+
+	t.Run("successful transaction", func(t *testing.T) {
+		txFunc := func(ctx context.Context, tx table.TransactionActor) error {
+			return nil
+		}
+		mockDB.On("DoTx", ctx, mock.AnythingOfType("func(context.Context, table.TransactionActor) error")).
+			Return(nil).Once()
+
+		err := mockDB.DoTx(ctx, txFunc)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("transaction with error", func(t *testing.T) {
+		expectedErr := errors.New("transaction failed")
+		txFunc := func(ctx context.Context, tx table.TransactionActor) error {
+			return expectedErr
+		}
+		mockDB.On("DoTx", ctx, mock.AnythingOfType("func(context.Context, table.TransactionActor) error")).
+			Return(expectedErr).Once()
+
+		err := mockDB.DoTx(ctx, txFunc)
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
+}
+
+// TestMockDatabase_Close tests the MockDatabase Close method
+func TestMockDatabase_Close(t *testing.T) {
+	mockDB := NewMockDatabase()
+	ctx := context.Background()
+
+	t.Run("successful close", func(t *testing.T) {
+		mockDB.On("Close", ctx).Return(nil).Once()
+
+		err := mockDB.Close(ctx)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("close with error", func(t *testing.T) {
+		expectedErr := errors.New("close failed")
+		mockDB.On("Close", ctx).Return(expectedErr).Once()
+
+		err := mockDB.Close(ctx)
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
+}
+
+// TestNewMockDatabase tests the NewMockDatabase constructor
+func TestNewMockDatabase(t *testing.T) {
+	mockDB := NewMockDatabase()
+
+	assert.NotNil(t, mockDB)
+}
+
+// TestYDBClient_NewYDBClient_MissingEnvVars tests NewYDBClient with missing environment variables
+func TestYDBClient_NewYDBClient_MissingEnvVars(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("missing YDB_ENDPOINT", func(t *testing.T) {
+		// Save and restore environment
+		oldEndpoint := getEnv("YDB_ENDPOINT")
+		oldDatabase := getEnv("YDB_DATABASE")
+		defer setEnv("YDB_ENDPOINT", oldEndpoint)
+		defer setEnv("YDB_DATABASE", oldDatabase)
+
+		setEnv("YDB_ENDPOINT", "")
+		setEnv("YDB_DATABASE", "/test")
+
+		client, err := NewYDBClient(ctx)
+
+		assert.Error(t, err)
+		assert.Nil(t, client)
+		assert.Contains(t, err.Error(), "YDB_ENDPOINT environment variable not set")
+	})
+
+	t.Run("missing YDB_DATABASE", func(t *testing.T) {
+		// Save and restore environment
+		oldEndpoint := getEnv("YDB_ENDPOINT")
+		oldDatabase := getEnv("YDB_DATABASE")
+		defer setEnv("YDB_ENDPOINT", oldEndpoint)
+		defer setEnv("YDB_DATABASE", oldDatabase)
+
+		setEnv("YDB_ENDPOINT", "localhost:2135")
+		setEnv("YDB_DATABASE", "")
+
+		client, err := NewYDBClient(ctx)
+
+		assert.Error(t, err)
+		assert.Nil(t, client)
+		assert.Contains(t, err.Error(), "YDB_DATABASE environment variable not set")
+	})
+}
+
+// TestYDBClient_Close_NilDriver tests Close with nil driver
+func TestYDBClient_Close_NilDriver(t *testing.T) {
+	ctx := context.Background()
+	client := &YDBClient{driver: nil}
+
+	err := client.Close(ctx)
+
+	assert.NoError(t, err)
+}
+
+// TestDatabaseAdapter_NewDatabaseAdapter tests NewDatabaseAdapter
+func TestDatabaseAdapter_NewDatabaseAdapter(t *testing.T) {
+	adapter := NewDatabaseAdapter()
+	assert.NotNil(t, adapter)
+}
+
+// TestDatabaseAdapter_Close tests DatabaseAdapter Close method
+func TestDatabaseAdapter_Close(t *testing.T) {
+	adapter := NewDatabaseAdapter()
+	ctx := context.Background()
+
+	t.Run("close with no connection", func(t *testing.T) {
+		// Should not error when closing with no connection
+		err := adapter.Close(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+// ============================================================================
+// Helper functions for environment variable testing
+// ============================================================================
+
+// getEnv gets environment variable value
+func getEnv(key string) string {
+	val, exists := os.LookupEnv(key)
+	if !exists {
+		return ""
+	}
+	return val
+}
+
+// setEnv sets environment variable value
+func setEnv(key, value string) {
+	if value == "" {
+		os.Unsetenv(key)
+	} else {
+		os.Setenv(key, value)
+	}
+}
+
+// ============================================================================
+// Original Tests
+// ============================================================================
 
 // TestDatetimeValueFromUnix tests the datetimeValueFromUnix helper function
 func TestDatetimeValueFromUnix(t *testing.T) {
