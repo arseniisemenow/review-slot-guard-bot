@@ -11,6 +11,4 @@ resource "yandex_function_trigger" "periodic_job" {
   function {
     id = yandex_function.periodic_job.id
   }
-
-  service_account_id = yandex_iam_service_account.review_slot_guard_bot.id
 }

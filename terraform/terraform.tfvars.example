@@ -1,13 +1,13 @@
 # Yandex Cloud Configuration
-folder_id = "your-folder-id-here"
-cloud_id  = "your-cloud-id-here"
+yandex_cloud_token = "your-oauth-token-or-service-account-key"
+folder_id          = "your-folder-id-here"
+cloud_id           = "your-cloud-id-here"
 
 # Telegram Bot Configuration
 # Get your token from @BotFather on Telegram
 telegram_bot_token = "your-telegram-bot-token-here"
 
-# School 21 API Configuration
-# This is a reference configuration - actual user tokens are stored per-user in Lockbox
+# School 21 API Configuration (not used in infrastructure, only reference)
 s21auto_api_token = ""
 s21auto_api_url   = "https://platform.21-school.ru/services/graphql"
 

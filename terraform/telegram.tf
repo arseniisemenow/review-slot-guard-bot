@@ -1,4 +1,3 @@
-# Set Telegram webhook automatically after API Gateway is deployed
-resource "telegram_bot_webhook" "rsgb_webhook" {
-  url             = "${yandex_api_gateway.telegram_webhook.domain}/webhook"
-}
+# Telegram webhook should be set manually after deployment
+# Run the following command after terraform apply:
+# curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" -d "url=$(terraform output -raw api_gateway_url)"

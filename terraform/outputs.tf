@@ -3,14 +3,14 @@ output "api_gateway_url" {
   value       = "${yandex_api_gateway.telegram_webhook.domain}/webhook"
 }
 
-output "ydb_endpoint" {
-  description = "YDB connection endpoint"
-  value       = yandex_ydb_database_serverless.review_slot_guard_bot.ydb_endpoint
+output "ydb_database_id" {
+  description = "YDB database ID"
+  value       = yandex_ydb_database_serverless.review_slot_guard_bot.id
 }
 
-output "ydb_database" {
-  description = "YDB database name"
-  value       = yandex_ydb_database_serverless.review_slot_guard_bot.database
+output "ydb_endpoint" {
+  description = "YDB connection endpoint"
+  value       = "grpcs://ydb.serverless.yandexcloud.net:2135"
 }
 
 output "function_periodic_job_id" {

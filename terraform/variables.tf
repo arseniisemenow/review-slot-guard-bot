@@ -1,3 +1,9 @@
+variable "yandex_cloud_token" {
+  description = "Yandex Cloud OAuth token (or use service account key)"
+  type        = string
+  sensitive   = true
+}
+
 variable "folder_id" {
   description = "Yandex Cloud folder ID"
   type        = string

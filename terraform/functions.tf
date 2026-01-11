@@ -26,8 +26,8 @@ resource "yandex_function" "periodic_job" {
   }
 
   environment = {
-    YDB_ENDPOINT      = yandex_ydb_database_serverless.review_slot_guard_bot.ydb_endpoint
-    YDB_DATABASE      = yandex_ydb_database_serverless.review_slot_guard_bot.database
+    YDB_ENDPOINT      = "grpcs://ydb.serverless.yandexcloud.net:2135"
+    YDB_DATABASE      = "/${var.folder_id}/rsgb-ydb"
     LOCKBOX_SECRET_ID = yandex_lockbox_secret.review_slot_guard_bot.id
   }
 
@@ -48,8 +48,8 @@ resource "yandex_function" "telegram_handler" {
   }
 
   environment = {
-    YDB_ENDPOINT      = yandex_ydb_database_serverless.review_slot_guard_bot.ydb_endpoint
-    YDB_DATABASE      = yandex_ydb_database_serverless.review_slot_guard_bot.database
+    YDB_ENDPOINT      = "grpcs://ydb.serverless.yandexcloud.net:2135"
+    YDB_DATABASE      = "/${var.folder_id}/rsgb-ydb"
     LOCKBOX_SECRET_ID = yandex_lockbox_secret.review_slot_guard_bot.id
   }
 

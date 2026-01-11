@@ -5,17 +5,13 @@ terraform {
       source  = "yandex-cloud/yandex"
       version = "~> 0.177"
     }
-    telegram = {
-      source  = "yi-jiayu/telegram"
-      version = "~> 0.3"
-    }
   }
 }
 
 provider "yandex" {
-  zone = "ru-central1-a"
+  zone     = "ru-central1-a"
+  token    = var.yandex_cloud_token
 }
 
-provider "telegram" {
-  token = var.telegram_bot_token
-}
+# Note: Telegram webhook should be set manually after deployment
+# Use: curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" -d "url=<API_GATEWAY_URL>/webhook"
