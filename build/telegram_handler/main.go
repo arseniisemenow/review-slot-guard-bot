@@ -14,11 +14,7 @@ import (
 	"github.com/arseniisemenow/review-slot-guard-bot/functions/telegram_handler/internal/handlers"
 )
 
-var (
-	deps *handlers.Dependencies
-)
-
-// init initializes the database schema and dependencies
+// init initializes the database schema
 func init() {
 	ctx := context.Background()
 
@@ -26,12 +22,6 @@ func init() {
 	if err := ydb.InitSchema(ctx); err != nil {
 		log.Printf("WARNING: Failed to initialize database schema: %v", err)
 		// Don't panic - tables may already exist
-	}
-
-	var err error
-	deps, err = handlers.NewDependencies(ctx)
-	if err != nil {
-		log.Fatalf("Failed to initialize dependencies: %v", err)
 	}
 }
 
@@ -88,12 +78,18 @@ func processUpdate(ctx context.Context, update *tba.Update, logger *log.Logger) 
 func handleCallbackQuery(ctx context.Context, callback *tba.CallbackQuery, logger *log.Logger) error {
 	logger.Printf("Received callback query from user %d", callback.From.ID)
 
+	bot, err := telegram.NewBotClientFromEnv()
+	if err != nil {
+		logger.Printf("Failed to create bot client: %v", err)
+		return err
+	}
+
 	// Get user by telegram_chat_id
 	user, err := ydb.GetUserByTelegramChatID(ctx, callback.From.ID)
 	if err != nil {
 		logger.Printf("User not found for telegram_chat_id %d: %v", callback.From.ID, err)
 		// Answer the callback anyway
-		deps.Bot.AnswerCallbackQuery(callback.ID, "User not found. Please use /start to authenticate.")
+		bot.AnswerCallbackQuery(callback.ID, "User not found. Please use /start to authenticate.")
 		return nil
 	}
 
@@ -101,7 +97,7 @@ func handleCallbackQuery(ctx context.Context, callback *tba.CallbackQuery, logge
 	action, reviewRequestID, err := telegram.ParseCallbackData(callback.Data)
 	if err != nil {
 		logger.Printf("Failed to parse callback data %s: %v", callback.Data, err)
-		deps.Bot.AnswerCallbackQuery(callback.ID, "Invalid callback data")
+		bot.AnswerCallbackQuery(callback.ID, "Invalid callback data")
 		return nil
 	}
 
@@ -109,28 +105,28 @@ func handleCallbackQuery(ctx context.Context, callback *tba.CallbackQuery, logge
 	req, err := ydb.GetReviewRequestByID(ctx, reviewRequestID)
 	if err != nil {
 		logger.Printf("Review request not found: %s", reviewRequestID)
-		deps.Bot.AnswerCallbackQuery(callback.ID, "Review request not found")
+		bot.AnswerCallbackQuery(callback.ID, "Review request not found")
 		return nil
 	}
 
 	// Verify the review belongs to the user
 	if req.ReviewerLogin != user.ReviewerLogin {
 		logger.Printf("User %s attempted to access review %s belonging to %s", user.ReviewerLogin, reviewRequestID, req.ReviewerLogin)
-		deps.Bot.AnswerCallbackQuery(callback.ID, "Access denied")
+		bot.AnswerCallbackQuery(callback.ID, "Access denied")
 		return nil
 	}
 
 	// Handle the action
 	switch action {
 	case "APPROVE":
-		return handlers.HandleApprove(ctx, deps, user, req, callback, logger)
+		return handlers.HandleApprove(ctx, user, req, callback, logger)
 
 	case "DECLINE":
-		return handlers.HandleDecline(ctx, deps, user, req, callback, logger)
+		return handlers.HandleDecline(ctx, user, req, callback, logger)
 
 	default:
 		logger.Printf("Unknown action: %s", action)
-		deps.Bot.AnswerCallbackQuery(callback.ID, "Unknown action")
+		bot.AnswerCallbackQuery(callback.ID, "Unknown action")
 	}
 
 	return nil
@@ -151,7 +147,7 @@ func handleMessage(ctx context.Context, message *tba.Message, logger *log.Logger
 	}
 
 	// Handle non-command text messages (like login:password)
-	return handlers.HandleAuthenticate(ctx, deps, message, logger)
+	return handlers.HandleAuthenticate(ctx, message, logger)
 }
 
 // handleCommand handles Telegram bot commands
@@ -160,51 +156,51 @@ func handleCommand(ctx context.Context, message *tba.Message, logger *log.Logger
 
 	switch command {
 	case "start":
-		return handlers.HandleStart(ctx, deps, message, logger)
+		return handlers.HandleStart(ctx, message, logger)
 
 	case "help":
-		return handlers.HandleHelp(ctx, deps, message, logger)
+		return handlers.HandleHelp(ctx, message, logger)
 
 	case "logout":
-		return handlers.HandleLogout(ctx, deps, message, logger)
+		return handlers.HandleLogout(ctx, message, logger)
 
 	case "settings":
-		return handlers.HandleSettings(ctx, deps, message, logger)
+		return handlers.HandleSettings(ctx, message, logger)
 
 	case "whitelist":
-		return handlers.HandleWhitelist(ctx, deps, message, logger)
+		return handlers.HandleWhitelist(ctx, message, logger)
 
 	case "whitelist_add":
-		return handlers.HandleWhitelistAdd(ctx, deps, message, logger)
+		return handlers.HandleWhitelistAdd(ctx, message, logger)
 
 	case "whitelist_remove":
-		return handlers.HandleWhitelistRemove(ctx, deps, message, logger)
+		return handlers.HandleWhitelistRemove(ctx, message, logger)
 
 	case "set_deadline_shift":
-		return handlers.HandleSetDeadlineShift(ctx, deps, message, logger)
+		return handlers.HandleSetDeadlineShift(ctx, message, logger)
 
 	case "set_cancel_delay":
-		return handlers.HandleSetCancelDelay(ctx, deps, message, logger)
+		return handlers.HandleSetCancelDelay(ctx, message, logger)
 
 	case "set_slot_shift_threshold":
-		return handlers.HandleSetSlotShiftThreshold(ctx, deps, message, logger)
+		return handlers.HandleSetSlotShiftThreshold(ctx, message, logger)
 
 	case "set_slot_shift_duration":
-		return handlers.HandleSetSlotShiftDuration(ctx, deps, message, logger)
+		return handlers.HandleSetSlotShiftDuration(ctx, message, logger)
 
 	case "set_cleanup_duration":
-		return handlers.HandleSetCleanupDuration(ctx, deps, message, logger)
+		return handlers.HandleSetCleanupDuration(ctx, message, logger)
 
 	case "set_notify_whitelist_timeout":
-		return handlers.HandleSetNotifyWhitelistTimeout(ctx, deps, message, logger)
+		return handlers.HandleSetNotifyWhitelistTimeout(ctx, message, logger)
 
 	case "set_notify_non_whitelist_cancel":
-		return handlers.HandleSetNotifyNonWhitelistCancel(ctx, deps, message, logger)
+		return handlers.HandleSetNotifyNonWhitelistCancel(ctx, message, logger)
 
 	case "status":
-		return handlers.HandleStatus(ctx, deps, message, logger)
+		return handlers.HandleStatus(ctx, message, logger)
 
 	default:
-		return handlers.HandleUnknownCommand(ctx, deps, message, logger)
+		return handlers.HandleUnknownCommand(ctx, message, logger)
 	}
 }
