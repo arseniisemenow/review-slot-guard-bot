@@ -1,0 +1,20 @@
+# Yandex Cloud Configuration
+folder_id = "your-folder-id-here"
+cloud_id  = "your-cloud-id-here"
+
+# Telegram Bot Configuration
+# Get your token from @BotFather on Telegram
+telegram_bot_token = "your-telegram-bot-token-here"
+
+# School 21 API Configuration
+# This is a reference configuration - actual user tokens are stored per-user in Lockbox
+s21auto_api_token = ""
+s21auto_api_url   = "https://platform.21-school.ru/services/graphql"
+
+# Periodic Job Schedule
+# Cron expression: */5 * * * * means every 5 minutes
+periodic_job_schedule = "*/5 * * * *"
+
+# Function Configuration
+function_memory  = 256  # MB
+function_timeout = 60   # seconds
