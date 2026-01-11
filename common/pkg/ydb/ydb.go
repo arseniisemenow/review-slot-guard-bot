@@ -8,7 +8,6 @@ import (
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/options"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 )
@@ -63,7 +62,7 @@ func Query(ctx context.Context, sql string, params ...table.ParameterOption) (re
 		}
 		res = r
 		return nil
-	}, options.WithIdempotent())
+	}, table.WithIdempotent())
 
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
@@ -80,23 +79,21 @@ func Exec(ctx context.Context, sql string, params ...table.ParameterOption) erro
 	}
 
 	return driver.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		_, err := s.Execute(ctx, table.DefaultTxControl(), sql, table.NewQueryParameters(params...))
+		_, _, err := s.Execute(ctx, table.DefaultTxControl(), sql, table.NewQueryParameters(params...))
 		return err
-	}, options.WithIdempotent())
+	}, table.WithIdempotent())
 }
 
 // DoTx executes a function within a transaction
-func DoTx(ctx context.Context, fn func(ctx context.Context, tx table.Transaction) error) error {
+func DoTx(ctx context.Context, fn func(ctx context.Context, tx table.TransactionActor) error) error {
 	driver, err := GetConnection(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get YDB connection: %w", err)
 	}
 
 	return driver.Table().DoTx(ctx, func(ctx context.Context, tx table.TransactionActor) error {
-		// Begin a serializable read-write transaction
-		txc := table.TxControl(table.BeginTx(table.WithSerializableReadWrite()), table.CommitTx())
 		return fn(ctx, tx)
-	}, options.WithIdempotent())
+	}, table.WithIdempotent())
 }
 
 // NewParameter creates a new query parameter

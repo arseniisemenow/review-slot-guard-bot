@@ -17,6 +17,17 @@ import (
 	"github.com/arseniisemenow/review-slot-guard-bot/functions/periodic_job/internal/logic"
 )
 
+// main function for local testing
+func main() {
+	http.HandleFunc("/", Handler)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Starting server on port %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
 // Handler is the Yandex Cloud Function entry point
 func Handler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -118,7 +129,11 @@ func processReviewRequest(ctx context.Context, req *models.ReviewRequest, user *
 // processUnknownProjectReview: Resolve project from notification
 func processUnknownProjectReview(ctx context.Context, req *models.ReviewRequest, user *models.User, settings *models.UserSettings, logger *log.Logger) error {
 	// Step 3a: Extract project name from notification
-	projectName, err := logic.ExtractProjectNameFromNotification(ctx, user.ReviewerLogin, req.NotificationID)
+	notificationID := ""
+	if req.NotificationID != nil {
+		notificationID = *req.NotificationID
+	}
+	projectName, err := logic.ExtractProjectNameFromNotification(ctx, user.ReviewerLogin, notificationID)
 	if err != nil {
 		return fmt.Errorf("failed to extract project name: %w", err)
 	}
@@ -168,7 +183,6 @@ func processKnownProjectReview(ctx context.Context, req *models.ReviewRequest, u
 	}
 
 	reviewStartTime := timeutil.FromUnixSeconds(req.ReviewStartTime)
-	now := time.Now()
 
 	// Step 5: Check if review is within decision threshold
 	deadline := timeutil.CalculateDecisionDeadline(reviewStartTime, int(settings.ResponseDeadlineShiftMinutes))

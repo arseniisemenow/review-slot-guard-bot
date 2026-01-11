@@ -6,6 +6,7 @@ require (
 	github.com/arseniisemenow/s21auto-client-go v0.1.6
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/stretchr/testify v1.10.0
+	github.com/yandex-cloud/go-genproto v0.39.0
 	github.com/yandex-cloud/go-sdk v0.30.0
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.125.1
 )
@@ -21,7 +22,6 @@ require (
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/yandex-cloud/go-genproto v0.39.0 // indirect
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20251125145508-6d7ef87db5cb // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect

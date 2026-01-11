@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/options"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
@@ -23,7 +21,7 @@ func datetimeValueFromUnix(ts int64) types.Value {
 // Helper function to create optional datetime value
 func optionalDatetimeValue(ts *int64) types.Value {
 	if ts == nil {
-		return types.OptionalValue(types.Void())
+		return types.NullValue(types.TypeTimestamp)
 	}
 	return types.OptionalValue(types.TimestampValueFromTime(time.Unix(*ts, 0)))
 }
@@ -525,9 +523,9 @@ func GetProjectsByFamily(ctx context.Context, familyLabel string) ([]string, err
 
 // UpsertProjectFamilies replaces all project families
 func UpsertProjectFamilies(ctx context.Context, families []*models.ProjectFamily) error {
-	return DoTx(ctx, func(ctx context.Context, tx table.Transaction) error {
+	return DoTx(ctx, func(ctx context.Context, tx table.TransactionActor) error {
 		// First, delete all existing entries
-		_, _, err := tx.Execute(ctx, TablePathPrefix("")+`DELETE FROM project_families;`, table.NewQueryParameters())
+		_, err := tx.Execute(ctx, TablePathPrefix("")+`DELETE FROM project_families;`, table.NewQueryParameters())
 		if err != nil {
 			return fmt.Errorf("failed to clear project_families: %w", err)
 		}
@@ -547,7 +545,7 @@ func UpsertProjectFamilies(ctx context.Context, families []*models.ProjectFamily
 				table.ValueParam("$project_name", types.TextValue(family.ProjectName)),
 			}
 
-			_, _, err = tx.Execute(ctx, sql, table.NewQueryParameters(params...))
+			_, err = tx.Execute(ctx, sql, table.NewQueryParameters(params...))
 			if err != nil {
 				return fmt.Errorf("failed to insert project family: %w", err)
 			}

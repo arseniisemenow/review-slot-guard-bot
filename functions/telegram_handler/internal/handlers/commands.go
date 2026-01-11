@@ -308,7 +308,7 @@ func HandleStatus(ctx context.Context, message *tba.Message, logger *log.Logger)
 
 // HandleUnknownCommand handles unrecognized commands
 func HandleUnknownCommand(ctx context.Context, message *tba.Message, logger *log.Logger) error {
-	sendMessage(message.Chat.ID(), fmt.Sprintf("Unknown command: %s\n\nUse /help to see available commands.", message.Command()))
+	sendMessage(message.Chat.ID, fmt.Sprintf("Unknown command: %s\n\nUse /help to see available commands.", message.Command()))
 	return nil
 }
 

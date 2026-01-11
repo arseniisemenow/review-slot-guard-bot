@@ -9,8 +9,8 @@ import (
 	"time"
 
 	ycsdk "github.com/yandex-cloud/go-sdk"
-	"github.com/yandex-cloud/go-sdk/gen/lockboxpayload"
-	"github.com/yandex-cloud/go-genproto/yandex/cloud/lockbox/v1"
+	lockboxpayload "github.com/yandex-cloud/go-sdk/gen/lockboxpayload"
+	lockbox1 "github.com/yandex-cloud/go-genproto/yandex/cloud/lockbox/v1"
 
 	"github.com/arseniisemenow/review-slot-guard-bot/common/pkg/models"
 )

@@ -3,19 +3,27 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 
 	tba "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/arseniisemenow/review-slot-guard-bot/common/pkg/models"
 	"github.com/arseniisemenow/review-slot-guard-bot/common/pkg/telegram"
 	"github.com/arseniisemenow/review-slot-guard-bot/common/pkg/ydb"
 	"github.com/arseniisemenow/review-slot-guard-bot/functions/telegram_handler/internal/handlers"
 )
+
+// main function for local testing
+func main() {
+	http.HandleFunc("/", Handler)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Starting server on port %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
 
 // Handler is the Yandex Cloud Function entry point for Telegram webhooks
 func Handler(w http.ResponseWriter, r *http.Request) {

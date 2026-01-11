@@ -21,8 +21,8 @@ import (
 func HandleApprove(ctx context.Context, user *models.User, req *models.ReviewRequest, callback *tba.CallbackQuery, logger *log.Logger) error {
 	logger.Printf("User %s approved review %s", user.ReviewerLogin, req.ID)
 
-	// Get user tokens
-	tokens, err := lockbox.GetUserTokens(ctx, user.ReviewerLogin)
+	// Get user tokens (for future API calls if needed)
+	_, err := lockbox.GetUserTokens(ctx, user.ReviewerLogin)
 	if err != nil {
 		return sendCallbackError(callback, fmt.Sprintf("Failed to get tokens: %v", err))
 	}
