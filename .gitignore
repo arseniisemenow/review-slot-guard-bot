@@ -1,3 +1,6 @@
 .idea
 *.out
 *.html
+*.lock.hcl
+*.tfvars
+.terraform

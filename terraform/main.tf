@@ -10,13 +10,6 @@ terraform {
       version = "~> 0.3"
     }
   }
-  backend "s3" {
-    # State storage configuration - should be configured per deployment
-    # bucket     = "your-state-bucket"
-    # key        = "review-slot-guard-bot/terraform.tfstate"
-    # region     = "ru-central1"
-    # endpoints  = ["storage.yandexcloud.net"]
-  }
 }
 
 provider "yandex" {
