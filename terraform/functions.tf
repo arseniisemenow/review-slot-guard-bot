@@ -21,7 +21,6 @@ resource "yandex_function" "periodic_job" {
   environment = {
     YDB_ENDPOINT      = "grpcs://ydb.serverless.yandexcloud.net:2135"
     YDB_DATABASE      = yandex_ydb_database_serverless.review_slot_guard_bot.database_path
-    LOCKBOX_SECRET_ID = yandex_lockbox_secret.review_slot_guard_bot.id
   }
 
   service_account_id = yandex_iam_service_account.review_slot_guard_bot.id
@@ -48,9 +47,9 @@ resource "yandex_function" "telegram_handler" {
   }
 
   environment = {
-    YDB_ENDPOINT      = "grpcs://ydb.serverless.yandexcloud.net:2135"
-    YDB_DATABASE      = yandex_ydb_database_serverless.review_slot_guard_bot.database_path
-    LOCKBOX_SECRET_ID = yandex_lockbox_secret.review_slot_guard_bot.id
+    YDB_ENDPOINT         = "grpcs://ydb.serverless.yandexcloud.net:2135"
+    YDB_DATABASE         = yandex_ydb_database_serverless.review_slot_guard_bot.database_path
+    TELEGRAM_BOT_TOKEN    = var.telegram_bot_token
   }
 
   service_account_id = yandex_iam_service_account.review_slot_guard_bot.id
