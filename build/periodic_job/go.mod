@@ -3,14 +3,13 @@ module github.com/arseniisemenow/review-slot-guard-bot/functions/periodic_job
 go 1.23.9
 
 require (
-	github.com/arseniisemenow/review-slot-guard-bot-common v0.0.2
+	github.com/arseniisemenow/review-slot-guard-bot-common v0.0.3
 	github.com/arseniisemenow/s21auto-client-go v0.1.6
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/arseniisemenow/review-slot-guard-bot-common v0.0.2
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-resty/resty/v2 v2.7.0 // indirect

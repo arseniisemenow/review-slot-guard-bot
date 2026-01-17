@@ -15,6 +15,7 @@ import (
 )
 
 // init initializes the database schema
+// NOTE: After deployment, run: yc serverless function allow-unauthenticated-invoke rsgb-telegram-handler
 func init() {
 	ctx := context.Background()
 

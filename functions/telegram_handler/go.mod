@@ -3,13 +3,12 @@ module github.com/arseniisemenow/review-slot-guard-bot/functions/telegram_handle
 go 1.23.9
 
 require (
-	github.com/arseniisemenow/review-slot-guard-bot-common v0.0.2
+	github.com/arseniisemenow/review-slot-guard-bot-common v0.0.3
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/arseniisemenow/review-slot-guard-bot-common v0.0.2
 	github.com/arseniisemenow/s21auto-client-go v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -27,6 +26,7 @@ require (
 	github.com/yandex-cloud/go-sdk v0.30.0 // indirect
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20251125145508-6d7ef87db5cb // indirect
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.125.1 // indirect
+	github.com/ydb-platform/ydb-go-yc-metadata v0.6.1 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
