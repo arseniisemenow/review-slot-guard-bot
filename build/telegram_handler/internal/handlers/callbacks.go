@@ -10,7 +10,6 @@ import (
 	tba "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/external"
-	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/lockbox"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/models"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/telegram"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/timeutil"
@@ -22,7 +21,7 @@ func HandleApprove(ctx context.Context, user *models.User, req *models.ReviewReq
 	logger.Printf("User %s approved review %s", user.ReviewerLogin, req.ID)
 
 	// Get user tokens (for future API calls if needed)
-	_, err := lockbox.GetUserTokens(ctx, user.ReviewerLogin)
+	_, err := ydb.GetUserTokens(ctx, user.ReviewerLogin)
 	if err != nil {
 		return sendCallbackError(callback, fmt.Sprintf("Failed to get tokens: %v", err))
 	}
@@ -57,7 +56,7 @@ func HandleDecline(ctx context.Context, user *models.User, req *models.ReviewReq
 	logger.Printf("User %s declined review %s", user.ReviewerLogin, req.ID)
 
 	// Cancel the slot via s21 API
-	tokens, err := lockbox.GetUserTokens(ctx, user.ReviewerLogin)
+	tokens, err := ydb.GetUserTokens(ctx, user.ReviewerLogin)
 	if err != nil {
 		return sendCallbackError(callback, fmt.Sprintf("Failed to get tokens: %v", err))
 	}

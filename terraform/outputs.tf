@@ -23,11 +23,6 @@ output "function_telegram_handler_id" {
   value       = yandex_function.telegram_handler.id
 }
 
-output "lockbox_secret_id" {
-  description = "Lockbox secret ID"
-  value       = yandex_lockbox_secret.review_slot_guard_bot.id
-}
-
 output "service_account_id" {
   description = "Service account ID"
   value       = yandex_iam_service_account.review_slot_guard_bot.id

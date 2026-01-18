@@ -11,12 +11,6 @@ resource "yandex_resourcemanager_folder_iam_member" "ydb_editor" {
   member      = "serviceAccount:${yandex_iam_service_account.review_slot_guard_bot.id}"
 }
 
-resource "yandex_resourcemanager_folder_iam_member" "lockbox_viewer" {
-  folder_id   = var.folder_id
-  role        = "lockbox.payloadViewer"
-  member      = "serviceAccount:${yandex_iam_service_account.review_slot_guard_bot.id}"
-}
-
 resource "yandex_resourcemanager_folder_iam_member" "functions_invoker" {
   folder_id   = var.folder_id
   role        = "serverless.functions.invoker"

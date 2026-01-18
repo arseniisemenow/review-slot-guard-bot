@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/external"
-	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/lockbox"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/models"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/telegram"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/timeutil"
@@ -16,8 +15,8 @@ import (
 
 // ExtractProjectNameFromNotification extracts project name from a notification
 func ExtractProjectNameFromNotification(ctx context.Context, reviewerLogin, notificationID string) (string, error) {
-	// Get user tokens from Lockbox
-	tokens, err := lockbox.GetUserTokens(ctx, reviewerLogin)
+	// Get user tokens from YDB
+	tokens, err := ydb.GetUserTokens(ctx, reviewerLogin)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user tokens: %w", err)
 	}
@@ -46,8 +45,8 @@ func ExtractProjectNameFromNotification(ctx context.Context, reviewerLogin, noti
 
 // PopulateProjectFamilies fetches and stores all project families
 func PopulateProjectFamilies(ctx context.Context, reviewerLogin string) error {
-	// Get user tokens from Lockbox
-	tokens, err := lockbox.GetUserTokens(ctx, reviewerLogin)
+	// Get user tokens from YDB
+	tokens, err := ydb.GetUserTokens(ctx, reviewerLogin)
 	if err != nil {
 		return fmt.Errorf("failed to get user tokens: %w", err)
 	}
@@ -78,8 +77,8 @@ func PopulateProjectFamilies(ctx context.Context, reviewerLogin string) error {
 
 // CancelCalendarSlot cancels a calendar slot via s21 API
 func CancelCalendarSlot(ctx context.Context, reviewerLogin, slotID string) error {
-	// Get user tokens from Lockbox
-	tokens, err := lockbox.GetUserTokens(ctx, reviewerLogin)
+	// Get user tokens from YDB
+	tokens, err := ydb.GetUserTokens(ctx, reviewerLogin)
 	if err != nil {
 		return fmt.Errorf("failed to get user tokens: %w", err)
 	}
@@ -93,8 +92,8 @@ func CancelCalendarSlot(ctx context.Context, reviewerLogin, slotID string) error
 
 // ChangeCalendarSlot changes the timing of a calendar slot
 func ChangeCalendarSlot(ctx context.Context, reviewerLogin, slotID string, newStart, newEnd time.Time) error {
-	// Get user tokens from Lockbox
-	tokens, err := lockbox.GetUserTokens(ctx, reviewerLogin)
+	// Get user tokens from YDB
+	tokens, err := ydb.GetUserTokens(ctx, reviewerLogin)
 	if err != nil {
 		return fmt.Errorf("failed to get user tokens: %w", err)
 	}
@@ -197,8 +196,8 @@ func NewTelegramClient() *telegram.BotClient {
 
 // GetCalendarEvents fetches calendar events for a user
 func GetCalendarEvents(ctx context.Context, reviewerLogin string, from, to time.Time) (*requests.CalendarGetEvents_Data, error) {
-	// Get user tokens from Lockbox
-	tokens, err := lockbox.GetUserTokens(ctx, reviewerLogin)
+	// Get user tokens from YDB
+	tokens, err := ydb.GetUserTokens(ctx, reviewerLogin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user tokens: %w", err)
 	}

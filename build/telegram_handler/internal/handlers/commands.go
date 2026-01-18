@@ -11,7 +11,6 @@ import (
 	tba "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/external"
-	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/lockbox"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/models"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/telegram"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/timeutil"
@@ -30,7 +29,7 @@ func HandleStart(ctx context.Context, message *tba.Message, logger *log.Logger) 
 	}
 
 	// Request login:password
-	sendMessage(chatID, "Please authenticate by sending your School 21 credentials in the format:\n\n`login:password`\n\nYour credentials will be stored securely in Yandex Cloud Lockbox.")
+	sendMessage(chatID, "Please authenticate by sending your School 21 credentials in the format:\n\n`login:password`\n\nYour credentials will be stored securely in YDB.")
 	return nil
 }
 
@@ -347,8 +346,8 @@ func HandleAuthenticate(ctx context.Context, message *tba.Message, logger *log.L
 	// In production, you would fetch the actual username from the API
 	reviewerLogin := login
 
-	// Store tokens in Lockbox
-	err = lockbox.StoreUserTokens(ctx, reviewerLogin, tokenResp.AccessToken, tokenResp.RefreshToken)
+	// Store tokens in YDB
+	err = ydb.StoreUserTokens(ctx, reviewerLogin, tokenResp.AccessToken, tokenResp.RefreshToken)
 	if err != nil {
 		logger.Printf("Failed to store tokens for %s: %v", reviewerLogin, err)
 		sendMessage(chatID, "Authentication succeeded, but failed to store tokens. Please contact support.")
@@ -395,8 +394,8 @@ func HandleLogout(ctx context.Context, message *tba.Message, logger *log.Logger)
 		return nil
 	}
 
-	// Delete tokens from Lockbox
-	err = lockbox.DeleteUserTokens(ctx, user.ReviewerLogin)
+	// Delete tokens from YDB
+	err = ydb.DeleteUserTokens(ctx, user.ReviewerLogin)
 	if err != nil {
 		logger.Printf("Failed to delete tokens for %s: %v", user.ReviewerLogin, err)
 	}

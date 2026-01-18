@@ -3,16 +3,14 @@ package handlers
 import (
 	"context"
 
-	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/lockbox"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/telegram"
 	"github.com/arseniisemenow/review-slot-guard-bot-common/pkg/ydb"
 )
 
 // Dependencies holds all external service interfaces for dependency injection
 type Dependencies struct {
-	Bot     telegram.BotSender
-	DB      ydb.Database
-	Lockbox lockbox.LockboxClient
+	Bot telegram.BotSender
+	DB  ydb.Database
 }
 
 // NewDependencies creates real dependencies for production use
@@ -27,20 +25,16 @@ func NewDependencies(ctx context.Context) (*Dependencies, error) {
 		return nil, err
 	}
 
-	lockboxClient := lockbox.NewClientAdapter()
-
 	return &Dependencies{
-		Bot:     bot,
-		DB:      db,
-		Lockbox: lockboxClient,
+		Bot: bot,
+		DB:  db,
 	}, nil
 }
 
 // NewTestDependencies creates mock dependencies for testing
-func NewTestDependencies(mockBot *telegram.MockBotSender, mockDB *ydb.MockDatabase, mockLockbox *lockbox.MockLockboxClient) *Dependencies {
+func NewTestDependencies(mockBot *telegram.MockBotSender, mockDB *ydb.MockDatabase) *Dependencies {
 	return &Dependencies{
-		Bot:     mockBot,
-		DB:      mockDB,
-		Lockbox: mockLockbox,
+		Bot: mockBot,
+		DB:  mockDB,
 	}
 }
